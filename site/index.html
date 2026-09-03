@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Groceries" />
+  <title>Groceries</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --paper: #fffaf3;
+      --ink: #1d1915;
+      --muted: #6e675e;
+      --line: #e4dcd0;
+      --accent: #2c5e3a;
+      --bad: #8b2e2e;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      min-height: 100%; }
+    body { padding: 24px 16px 48px; }
+    main { max-width: 720px; margin: 0 auto; }
+    h1 { font-family: ui-serif, Georgia, "Times New Roman", serif; font-weight: 600;
+      font-size: 2rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); margin: 0 0 20px; font-size: 0.95rem; }
+    .card { background: var(--paper); border: 1px solid var(--line); border-radius: 16px;
+      padding: 20px; box-shadow: 0 1px 0 rgba(29,25,21,0.04); }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; }
+    input[type="password"] {
+      width: 100%; font-size: 16px; padding: 14px 12px; border: 1px solid var(--line);
+      border-radius: 10px; background: #fff; color: var(--ink);
+    }
+    button {
+      margin-top: 12px; width: 100%; font-size: 1rem; padding: 14px 12px;
+      border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600;
+    }
+    button.secondary { background: transparent; color: var(--muted); font-weight: 500; padding: 8px; margin-top: 8px; }
+    .err { color: var(--bad); min-height: 1.2em; margin: 8px 0 0; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 1.05rem; }
+    tr:last-child td { border-bottom: 0; }
+    .empty { color: var(--muted); padding: 12px 0; }
+    .lock { display: none; }
+    .hidden { display: none !important; }
+    @media (min-width: 560px) {
+      table { table-layout: fixed; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Groceries</h1>
+    <p class="sub" id="sub">Household list</p>
+    <form id="gate" class="card" autocomplete="current-password">
+      <label for="pw">Password</label>
+      <input id="pw" type="password" enterkeyhint="go" autocapitalize="off" autocorrect="off" spellcheck="false" required />
+      <button type="submit">Open list</button>
+      <p class="err" id="err"></p>
+    </form>
+    <div id="list" class="card hidden">
+      <div id="tableWrap"></div>
+      <button type="button" class="secondary" id="lock">Lock</button>
+    </div>
+  </main>
+  <script>
+    const STORAGE = "household.groceries.pw";
+    const DATA_URL = "data.enc.json";
+    const $ = (id) => document.getElementById(id);
+    const b64ToBytes = (b64) => {
+      const bin = atob(b64);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    };
+    async function deriveKey(password, salt, iter) {
+      const enc = new TextEncoder();
+      const material = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]);
+      return crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt, iterations: iter, hash: "SHA-256" },
+        material,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["decrypt"]
+      );
+    }
+    async function decryptPayload(pkg, password) {
+      const key = await deriveKey(password, b64ToBytes(pkg.salt), pkg.iter);
+      const pt = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: b64ToBytes(pkg.iv) },
+        key,
+        b64ToBytes(pkg.ct)
+      );
+      return JSON.parse(new TextDecoder().decode(pt));
+    }
+    function fmtWhen(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleString("en-CA", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " ET";
+    }
+    function render(data) {
+      const items = Array.isArray(data.items) ? data.items.filter(Boolean) : [];
+      const count = Number.isFinite(data.count) ? data.count : items.length;
+      $("sub").textContent = count + " open" + (data.listName ? " on " + data.listName : "") + (data.fetchedAt ? " · updated " + fmtWhen(data.fetchedAt) : "");
+      if (!items.length) {
+        $("tableWrap").innerHTML = '<p class="empty">List is empty.</p>';
+        return;
+      }
+      const cols = window.matchMedia("(min-width: 560px)").matches ? 3 : 1;
+      let html = "<table><tbody>";
+      for (let i = 0; i < items.length; i += cols) {
+        html += "<tr>";
+        for (let c = 0; c < cols; c++) {
+          const v = items[i + c];
+          html += "<td>" + (v ? escapeHtml(String(v)) : "") + "</td>";
+        }
+        html += "</tr>";
+      }
+      html += "</tbody></table>";
+      $("tableWrap").innerHTML = html;
+    }
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    }
+    async function tryUnlock(password, fromStorage) {
+      $("err").textContent = "";
+      try {
+        const pkg = await fetch(DATA_URL, { cache: "no-store" }).then((r) => {
+          if (!r.ok) throw new Error("Could not load list");
+          return r.json();
+        });
+        const data = await decryptPayload(pkg, password);
+        localStorage.setItem(STORAGE, password);
+        $("gate").classList.add("hidden");
+        $("list").classList.remove("hidden");
+        render(data);
+      } catch (e) {
+        if (!fromStorage) $("err").textContent = "Wrong password or list unavailable.";
+        localStorage.removeItem(STORAGE);
+        $("gate").classList.remove("hidden");
+        $("list").classList.add("hidden");
+      }
+    }
+    $("gate").addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      tryUnlock($("pw").value, false);
+    });
+    $("lock").addEventListener("click", () => {
+      localStorage.removeItem(STORAGE);
+      $("pw").value = "";
+      $("list").classList.add("hidden");
+      $("gate").classList.remove("hidden");
+      $("sub").textContent = "Household list";
+      $("pw").focus();
+    });
+    const saved = localStorage.getItem(STORAGE);
+    if (saved) tryUnlock(saved, true);
+  </script>
+</body>
+</html>

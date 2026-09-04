@@ -223,11 +223,38 @@
       if (Number.isNaN(d.getTime())) return String(iso);
       return d.toLocaleTimeString("en-CA", { timeZone: TZ, hour: "numeric", minute: "2-digit" });
     }
+    function parseYmdParts(value) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || "").trim());
+      if (!m) return null;
+      return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
+    }
+    function dateFromYmd(ymd) {
+      const parts = parseYmdParts(ymd);
+      if (!parts) return null;
+      // 16:00 UTC is midday in America/New_York year-round, so the calendar
+      // day is stable. Never parse a bare YYYY-MM-DD with new Date(ymd).
+      return new Date(Date.UTC(parts.y, parts.m - 1, parts.d, 16, 0, 0));
+    }
+    function fmtYmd(ymd) {
+      const dt = dateFromYmd(ymd);
+      if (!dt || Number.isNaN(dt.getTime())) return "";
+      return dt.toLocaleDateString("en-CA", {
+        timeZone: TZ,
+        weekday: "long",
+        month: "long",
+        day: "numeric"
+      });
+    }
     function fmtDay(iso) {
       if (!iso) return "";
-      const d = new Date(iso);
+      const d = dateFromYmd(iso) || new Date(iso);
       if (Number.isNaN(d.getTime())) return "";
       return d.toLocaleDateString("en-CA", { timeZone: TZ, weekday: "short", month: "short", day: "numeric" });
+    }
+    function briefDateLine(data, groc) {
+      if (data && data.forDate) return fmtYmd(data.forDate) || String(data.forDate);
+      if (data && data.dateLabel) return String(data.dateLabel);
+      return fmtDay((data && data.fetchedAt) || (groc && groc.fetchedAt) || new Date().toISOString());
     }
     function showToast(msg) {
       const el = $("toast");
@@ -427,7 +454,7 @@
       const groc = groceryBlock(data);
       const greeting = data.greeting || data.hello || "Good day.";
       $("greeting").textContent = greeting;
-      $("sub").textContent = data.dateLabel || fmtDay(data.fetchedAt || groc.fetchedAt || new Date().toISOString()) || "Household home";
+      $("sub").textContent = briefDateLine(data, groc) || "Household home";
       const cal = data.calendar || {};
       $("todayWrap").innerHTML = renderEvents(cal.today || cal.events, false);
       $("upcomingWrap").innerHTML = renderEvents(cal.upcoming, true);

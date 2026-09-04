@@ -172,22 +172,16 @@
         ct: bytesToB64(ct)
       };
     }
-    async function hmacB64(password, message) {
+    async function hmacHex(password, message) {
       const enc = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        "raw",
-        enc.encode(password),
-        { name: "HMAC", hash: "SHA-256" },
-        false,
-        ["sign"]
-      );
+      const key = await crypto.subtle.importKey("raw", enc.encode(password), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
       const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
-      return bytesToB64(sig);
+      return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
     }
     async function signedInner(action, name) {
       const clientAt = new Date().toISOString();
       const nonce = randomNonce();
-      const mac = await hmacB64(sessionPw, "v1|" + action + "|" + name + "|" + clientAt + "|" + nonce);
+      const mac = await hmacHex(sessionPw, "v1|" + action + "|" + name + "|" + clientAt + "|" + nonce);
       return { v: 1, action, name, clientAt, nonce, mac };
     }
 
@@ -219,7 +213,7 @@
       const pending = loadPending();
       const items = Array.isArray(data.items) ? data.items.filter(Boolean).map(String) : [];
       const deleted = new Set(pending.filter((p) => p.action === "delete").map((p) => p.name));
-      const checked = new Set(pending.filter((p) => p.action === "check").map((p) => p.name));
+      const checked = new Set(pending.filter((p) => p.action === "complete").map((p) => p.name));
       const visible = items.filter((name) => !deleted.has(name)).map((name) => ({
         name,
         checked: checked.has(name),
@@ -242,11 +236,11 @@
 
     async function onCheck(name, checked) {
       if (!checked) return;
-      addPending({ action: "check", name, at: Date.now() });
+      addPending({ action: "complete", name, at: Date.now() });
       apply(sessionData);
       showToast("Sent to Alexa. Usually shows on the speaker within 5 minutes.");
       try {
-        await sendMutation("check", name);
+        await sendMutation("complete", name);
       } catch (e) {
         $("err").textContent = "Could not send update.";
       }

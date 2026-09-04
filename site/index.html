@@ -462,7 +462,7 @@
       if (!checked) return;
       addPending({ action: "complete", name, at: Date.now() });
       apply(sessionData);
-      showToast("Sent to Alexa. Usually shows on the speaker within 5 minutes.");
+      showToast("Sent to Alexa. Usually shows on the speaker by the next sync (about 12 hours).");
       try {
         await sendMutation("complete", name);
       } catch (e) {
@@ -472,7 +472,7 @@
     async function onDelete(name) {
       addPending({ action: "delete", name, at: Date.now() });
       apply(sessionData);
-      showToast("Sent to Alexa. Usually shows on the speaker within 5 minutes.");
+      showToast("Sent to Alexa. Usually shows on the speaker by the next sync (about 12 hours).");
       try {
         await sendMutation("delete", name);
       } catch (e) {

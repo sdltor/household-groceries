@@ -105,6 +105,24 @@
     .empty { color: var(--muted); padding: 4px 0; }
     .section-kicker { color: var(--muted); font-size: 0.78rem; font-weight: 700;
       letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 6px; }
+    .mail-digest {
+      margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line);
+    }
+    .mail-digest .digest-title {
+      color: var(--muted); font-size: 0.78rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 10px;
+    }
+    .digest-sec { margin-top: 12px; }
+    .digest-sec:first-of-type { margin-top: 0; }
+    .digest-heading { font-size: 0.95rem; font-weight: 650; margin: 0 0 6px; }
+    .digest-sec ul {
+      margin: 0; padding-left: 1.15em; color: var(--muted);
+      font-size: 0.92rem; line-height: 1.45;
+    }
+    .digest-sec li { margin: 4px 0; }
+    .digest-footer {
+      margin: 12px 0 0; font-size: 0.85rem; color: var(--muted); font-style: italic;
+    }
     #toast {
       position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
       max-width: calc(100% - 32px); background: var(--ink); color: #fff;
@@ -395,7 +413,7 @@
     }
     function mailSnippet(m) {
       if (!m || typeof m === "string") return "";
-      return m.snippet || m.preview || m.body || m.text || "";
+      return m.snippet || m.preview || m.body || m.text || m.note || "";
     }
     function mailAction(m) {
       if (!m || typeof m === "string") return "";
@@ -421,6 +439,33 @@
           "</div></article>";
       }).join("");
     }
+    function renderDigest(digest) {
+      if (!digest || typeof digest !== "object") return "";
+      const sections = asList(digest.sections).filter(Boolean);
+      if (!sections.length) return "";
+      const title = digest.title || digest.heading || "Inbox summary";
+      let html = '<div class="mail-digest">';
+      html += '<p class="digest-title">' + escapeHtml(title) + "</p>";
+      html += sections.map((sec) => {
+        if (typeof sec === "string") {
+          return '<div class="digest-sec"><ul><li>' + escapeHtml(sec) + "</li></ul></div>";
+        }
+        const heading = sec.heading || sec.title || sec.name || "";
+        const lines = asList(sec.lines || sec.items || sec.bullets || sec.notes).filter(Boolean);
+        if (!heading && !lines.length) return "";
+        return '<div class="digest-sec">' +
+          (heading ? '<p class="digest-heading">' + escapeHtml(heading) + "</p>" : "") +
+          (lines.length ? "<ul>" + lines.map((line) => {
+            const text = typeof line === "string" ? line : (line.text || line.line || line.note || line.summary || String(line || ""));
+            return text ? "<li>" + escapeHtml(text) + "</li>" : "";
+          }).join("") + "</ul>" : "") +
+          "</div>";
+      }).join("");
+      const footer = digest.footer || "";
+      if (footer) html += '<p class="digest-footer">' + escapeHtml(footer) + "</p>";
+      html += "</div>";
+      return html;
+    }
     function renderMail(mail) {
       if (!mail) return '<p class="empty">No mail in this brief.</p>';
       if (typeof mail === "string") return "<p>" + escapeHtml(mail) + "</p>";
@@ -433,6 +478,7 @@
         html += '<p class="section-kicker">Important</p>' + renderMailItems(important, true);
       }
       if (items.length) html += renderMailItems(items, mail.important === true);
+      html += renderDigest(mail.digest);
       if (!html) return '<p class="empty">Inbox is quiet.</p>';
       return html;
     }

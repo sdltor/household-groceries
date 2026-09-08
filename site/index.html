@@ -129,6 +129,22 @@
       padding: 12px 16px; border-radius: 12px; font-size: 0.95rem;
       box-shadow: 0 8px 24px rgba(29,25,21,0.18); z-index: 40;
     }
+    .paper-card {
+      background: linear-gradient(180deg, #fffaf3 0%, #f6efe3 100%);
+    }
+    .paper-cta {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+      margin-top: 4px; padding: 16px 18px; border-radius: 12px;
+      background: var(--accent); color: #fff; text-decoration: none;
+      font-weight: 700; font-size: 1.12rem; line-height: 1.25;
+    }
+    .paper-cta:hover { filter: brightness(1.06); }
+    .paper-cta:focus-visible {
+      outline: 3px solid var(--ink); outline-offset: 3px;
+    }
+    .paper-cta-sub {
+      font-weight: 500; font-size: 0.88rem; opacity: 0.92;
+    }
     @media (max-width: 520px) {
       .event { grid-template-columns: 1fr; }
     }
@@ -137,6 +153,7 @@
 <body>
   <nav id="nav" class="hidden" aria-label="Sections">
     <a href="#today">Today</a>
+    <a href="#paper" id="paperNav" class="hidden">Paper</a>
     <a href="#mail">Mail</a>
     <a href="#notes">Notes</a>
     <a href="#groceries">Groceries</a>
@@ -153,6 +170,14 @@
     </form>
     <div id="brief" class="hidden">
       <p class="greeting" id="greeting"></p>
+      <section class="card paper-card hidden" id="paper">
+        <p class="section-kicker">Today’s paper</p>
+        <h2>The Zorah Times</h2>
+        <a class="paper-cta" id="paperLink" href="paper/latest.pdf" target="_blank" rel="noopener noreferrer">
+          Today’s paper
+          <span class="paper-cta-sub">The Zorah Times · opens in a new tab</span>
+        </a>
+      </section>
       <section class="card" id="today">
         <p class="section-kicker">Calendar</p>
         <h2>Today</h2>
@@ -183,6 +208,7 @@
     const STORAGE = "household.groceries.pw";
     const PENDING = "household.groceries.pending";
     const DATA_URL = "data.enc.json";
+    const PAPER_URL = "paper/latest.pdf";
     const TZ = "America/New_York";
     const $ = (id) => document.getElementById(id);
     let sessionPw = "";
@@ -553,6 +579,19 @@
       }
     }
 
+    function setPaperVisible(on) {
+      $("paper").classList.toggle("hidden", !on);
+      $("paperNav").classList.toggle("hidden", !on);
+    }
+    async function revealPaperIfPresent() {
+      try {
+        const res = await fetch(PAPER_URL, { method: "HEAD", cache: "no-store" });
+        setPaperVisible(res.ok);
+      } catch (e) {
+        setPaperVisible(false);
+      }
+    }
+
     function markNav() {
       const hash = (location.hash || "#today").slice(1);
       document.querySelectorAll("#nav a").forEach((a) => {
@@ -577,6 +616,7 @@
         $("nav").classList.remove("hidden");
         document.body.classList.add("unlocked");
         apply(data);
+        await revealPaperIfPresent();
         markNav();
         if (location.hash) {
           const el = document.querySelector(location.hash);
@@ -589,6 +629,7 @@
         $("brief").classList.add("hidden");
         $("nav").classList.add("hidden");
         document.body.classList.remove("unlocked");
+        setPaperVisible(false);
       }
     }
 
@@ -606,6 +647,7 @@
       $("nav").classList.add("hidden");
       $("gate").classList.remove("hidden");
       document.body.classList.remove("unlocked");
+      setPaperVisible(false);
       $("sub").textContent = "Household home";
       $("pw").focus();
     });

@@ -71,6 +71,9 @@
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
     }
+    .timeline > .day-card:only-child {
+      grid-column: 1 / -1;
+    }
     .day-card {
       min-width: 0;
       padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px;
